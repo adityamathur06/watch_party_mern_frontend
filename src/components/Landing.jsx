@@ -5,12 +5,15 @@ import { baseUrl } from "../utils/api";
 import { useDispatch } from "react-redux";
 import { setUser } from "../redux/userSlice";
 import { toast } from "react-toastify";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faEye } from "@fortawesome/free-solid-svg-icons";
 
 export default function Landing({ setIsAuth }) {
     const navigate = useNavigate();
     const dispatch = useDispatch();
     const [activeModal, setActiveModal] = useState(null);
     const [formData, setFormData] = useState({});
+    const [showPassword, setShowPassword] = useState(false);
     
     const [signupStep, setSignupStep] = useState(1);
     const [otpValue, setOtpValue] = useState("");
@@ -61,17 +64,20 @@ export default function Landing({ setIsAuth }) {
 
     const openLoginModal = () => {
         setSignupStep(1);
+        setShowPassword(false);
         setActiveModal('login');
     };
     
     const openSignupModal = () => {
         setSignupStep(1);
         setOtpValue("");
+        setShowPassword(false);
         setActiveModal('signup');
     };
     
     const closeModal = () => {
         setSignupStep(1);
+        setShowPassword(false);
         setActiveModal(null);
     };
 
@@ -142,6 +148,21 @@ export default function Landing({ setIsAuth }) {
     const btnSecondary = `${btnBase} bg-transparent text-white border border-[#444] hover:bg-[#222]`;
     const inputStyle = "px-3.5 py-3 rounded-lg border border-[#333] bg-[#111] text-white text-[0.95rem] transition-colors duration-500 focus:outline-none focus:border-accent";
 
+    const PasswordToggle = () => (
+        <button
+            type="button"
+            onClick={() => setShowPassword(!showPassword)}
+            className="absolute right-4 top-1/2 -translate-y-1/2 text-[#888] hover:text-[#fff] cursor-pointer w-5 h-5 flex items-center justify-center transition-colors"
+            tabIndex="-1"
+        >
+            <FontAwesomeIcon icon={faEye} />
+            <span
+                className={`absolute w-[110%] h-[2px] bg-current rounded-full transform -rotate-45 transition-all duration-300 ease-out origin-center
+                ${showPassword ? 'scale-x-0 opacity-0' : 'scale-x-100 opacity-100'}`}
+            ></span>
+        </button>
+    );
+
     return (
         <>
             <main className="min-h-screen flex flex-col justify-center items-center text-center p-8">
@@ -161,8 +182,20 @@ export default function Landing({ setIsAuth }) {
                         <h2 className="mb-5 text-center text-2xl font-bold">Login</h2>
 
                         <form className="flex flex-col gap-4" onSubmit={handleLogin}>
-                            <input className={inputStyle} onChange={handleChange} type="email" name="email" placeholder="Email" required />
-                            <input className={inputStyle} onChange={handleChange} type="password" name="password" placeholder="Password" required />
+                            <input className={inputStyle} onChange={handleChange} type="email" name="email" placeholder="Email" value={formData.email || ''} required />
+                            <div className="relative w-full">
+                                <input 
+                                    className={`${inputStyle} w-full pr-12`} 
+                                    onChange={handleChange} 
+                                    type={showPassword ? "text" : "password"} 
+                                    name="password" 
+                                    placeholder="Password" 
+                                    value={formData.password || ''} 
+                                    required 
+                                />
+                                <PasswordToggle />
+                            </div>
+
                             <button type="submit" className={btnPrimary}>Login</button>
                         </form>
                     </div>
@@ -177,7 +210,19 @@ export default function Landing({ setIsAuth }) {
                             <form className="flex flex-col gap-4" onSubmit={(e) => handleSendOtp(e, false)}>
                                 <input className={inputStyle} onChange={handleChange} type="text" name="name" placeholder="Your Name" value={formData.name || ''} required />
                                 <input className={inputStyle} onChange={handleChange} type="email" name="email" placeholder="Email" value={formData.email || ''} required />
-                                <input className={inputStyle} onChange={handleChange} type="password" name="password" placeholder="Create Password" value={formData.password || ''} required />
+                                <div className="relative w-full">
+                                    <input 
+                                        className={`${inputStyle} w-full pr-12`} 
+                                        onChange={handleChange} 
+                                        type={showPassword ? "text" : "password"} 
+                                        name="password" 
+                                        placeholder="Create Password" 
+                                        value={formData.password || ''} 
+                                        required 
+                                    />
+                                    <PasswordToggle />
+                                </div>
+
                                 <button type="submit" className={btnPrimary}>Send OTP</button>
                             </form>
                         ) : (

@@ -20,3 +20,18 @@ body::before {
   background: rgba(0, 0, 0, 0.6);
   z-index: -1;
 }
+
+/* Defeat Chrome's forced autofill styling */
+input:-webkit-autofill,
+input:-webkit-autofill:hover, 
+input:-webkit-autofill:focus, 
+input:-webkit-autofill:active {
+    /* Uses an inner shadow to cover the forced blue background with your dark theme color */
+    -webkit-box-shadow: 0 0 0px 1000px #111 inset !important;
+    
+    /* Forces the text color to remain white instead of Chrome's default black */
+    -webkit-text-fill-color: white !important;
+    
+    /* Matches your existing input border transition */
+    transition: background-color 5000s ease-in-out 0s;
+}

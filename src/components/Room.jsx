@@ -3,20 +3,20 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import { setRoom, clearRoom, addMember, removeMember } from '../redux/roomSlice';
 import { setMessages, addMessage, clearMessages } from '../redux/chatSlice';
-import { setOnlineUsers } from '../redux/userSlice'; // ADDED setOnlineUsers
+import { setOnlineUsers } from '../redux/userSlice';
 import axios from 'axios';
 import { baseUrl } from '../utils/api';
 import { io } from 'socket.io-client';
 import { toast } from 'react-toastify';
 import { getAvatarGradient } from './Dashboard';
+import ContentSearch from '../components/ContentSearch';
 
 export default function Room() {
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [isLoading, setIsLoading] = useState(true);
     const [newMessage, setNewMessage] = useState("");
-    const [currentTime, setCurrentTime] = useState(0);
-    const [duration, setDuration] = useState(0);
-    const [isPlaying, setIsPlaying] = useState(false);
+    
+    const [iframeLink, setIframeLink] = useState("");
 
     const [isAddFriendModalOpen, setIsAddFriendModalOpen] = useState(false);
     const [friendSearchQuery, setFriendSearchQuery] = useState("");
@@ -28,10 +28,10 @@ export default function Room() {
 
     const chatEndRef = useRef(null);
     const socketRef = useRef(null);
-    const videoRef = useRef(null);
+    const isSocketInitialized = useRef(false);
 
     const currentUser = useSelector((state) => state.user.currentUser);
-    const onlineUsers = useSelector((state) => state.user.onlineUsers); // PULLING ONLINE ARRAY
+    const onlineUsers = useSelector((state) => state.user.onlineUsers);
     const currentRoom = useSelector((state) => state.room.currentRoom);
     const messages = useSelector((state) => state.chat.messages);
 
@@ -48,15 +48,12 @@ export default function Room() {
         ...currentRoom.members.map(m => String(m._id))
     ] : [];
 
-    const formatTime = (timeInSeconds) => {
-        if (!timeInSeconds || isNaN(timeInSeconds)) return "00:00";
-        const minutes = Math.floor(timeInSeconds / 60);
-        const seconds = Math.floor(timeInSeconds % 60);
-        return `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
-    };
-
     useEffect(() => {
         const fetchRoomAndChats = async () => {
+            // Prevent multiple socket connections on re-renders
+            if (isSocketInitialized.current) return;
+            isSocketInitialized.current = true;
+
             try {
                 const token = localStorage.getItem('token');
                 let roomData = currentRoom;
@@ -69,7 +66,10 @@ export default function Room() {
                     if (roomRes.data.success) {
                         roomData = roomRes.data.room;
                         dispatch(setRoom(roomData));
+                        setIframeLink(roomData.link || "");
                     }
+                } else {
+                    setIframeLink(roomData.link || "");
                 }
 
                 if (roomData) {
@@ -83,7 +83,6 @@ export default function Room() {
 
                     socketRef.current = io(baseUrl);
 
-                    // --- NEW GLOBAL PRESENCE HOOKS ---
                     socketRef.current.emit('register_user', currentUser._id);
                     socketRef.current.on('online_users', (users) => {
                         dispatch(setOnlineUsers(users));
@@ -114,26 +113,9 @@ export default function Room() {
                         navigate('/dashboard');
                     });
 
-                    socketRef.current.on('video_play', () => {
-                        if (videoRef.current) {
-                            videoRef.current.play().catch(e => console.log(e));
-                            setIsPlaying(true);
-                        }
-                    });
-
-                    socketRef.current.on('video_pause', () => {
-                        if (videoRef.current) {
-                            videoRef.current.pause();
-                            setIsPlaying(false);
-                        }
-                    });
-
-                    socketRef.current.on('video_seek', (time) => {
-                        if (videoRef.current) {
-                            if (Math.abs(videoRef.current.currentTime - time) > 1) {
-                                videoRef.current.currentTime = time;
-                            }
-                        }
+                    // When the host picks a movie, update the iframe for everyone else
+                    socketRef.current.on('video_change', (newLink) => {
+                        setIframeLink(newLink);
                     });
                 }
 
@@ -148,6 +130,7 @@ export default function Room() {
         return () => {
             if (socketRef.current) {
                 socketRef.current.disconnect();
+                isSocketInitialized.current = false;
             }
         };
     }, [id, dispatch, navigate, currentUser]);
@@ -214,46 +197,17 @@ export default function Room() {
         }
     };
 
-    const togglePlay = () => {
-        if (!isHost || !videoRef.current) return;
-        if (videoRef.current.paused) {
-            videoRef.current.play();
-        } else {
-            videoRef.current.pause();
-        }
-    };
-
-    const handlePlay = () => {
-        setIsPlaying(true);
-        if (isHost && socketRef.current) {
-            socketRef.current.emit('video_play', currentRoom.roomId);
-        }
-    };
-
-    const handlePause = () => {
-        setIsPlaying(false);
-        if (isHost && socketRef.current) {
-            socketRef.current.emit('video_pause', currentRoom.roomId);
-        }
-    };
-
-    const handleSeekInput = (e) => {
-        if (!isHost || !videoRef.current) return;
-        const newTime = parseFloat(e.target.value);
-        videoRef.current.currentTime = newTime;
-        setCurrentTime(newTime);
-
-        socketRef.current.emit('video_seek', {
-            roomId: currentRoom.roomId,
-            time: newTime
-        });
-    };
-
-    const handleSeekEvent = (e) => {
-        if (isHost && socketRef.current) {
-            socketRef.current.emit('video_seek', {
-                roomId: currentRoom.roomId,
-                time: e.target.currentTime
+    const handlePlayMedia = (item) => {
+        const type = item.media_type === 'tv' ? 'tv' : 'movie';
+        // Removed autoPlay=true so users have time to sync up manually
+        const baseLink = `https://www.vidking.net/embed/${type}/${item.id}?color=ff5c00`;
+        
+        setIframeLink(baseLink);
+        
+        if (socketRef.current && currentRoom) {
+            socketRef.current.emit('video_change', { 
+                roomId: currentRoom.roomId, 
+                link: baseLink 
             });
         }
     };
@@ -348,7 +302,6 @@ export default function Room() {
                         <div className="p-4 flex-1 overflow-y-auto">
                             <h2 className="text-[1.2rem] mb-4 font-bold">Members</h2>
                             <ul className="list-none p-0 mt-4 flex flex-col gap-3">
-                                {/* Host Member - Always online technically since they are in the room */}
                                 <li className="flex items-center gap-3">
                                     <div className="relative shrink-0">
                                         <div className={`w-8 h-8 rounded-full bg-gradient-to-br ${getAvatarGradient(currentRoom.host.name)} flex items-center justify-center text-white font-bold text-xs ring-2 ring-accent/30`}>
@@ -358,7 +311,6 @@ export default function Room() {
                                     </div>
                                     <span className="font-bold text-accent text-[0.9rem] truncate">{currentRoom.host.name} (Host)</span>
                                 </li>
-                                {/* Regular Members */}
                                 {currentRoom.members.map((member) => (
                                     <li key={member._id} className="flex items-center gap-3 opacity-90">
                                         <div className="relative shrink-0">
@@ -385,64 +337,32 @@ export default function Room() {
                         </div>
                     </aside>
 
-                    <div className="flex items-center justify-center bg-black/35 relative group">
-                        <video
-                            ref={videoRef}
-                            id="roomVideo"
-                            preload="metadata"
-                            src={currentRoom.link}
-                            onPlay={handlePlay}
-                            onPause={handlePause}
-                            onSeeked={handleSeekEvent}
-                            onTimeUpdate={(e) => setCurrentTime(e.target.currentTime)}
-                            onLoadedMetadata={(e) => setDuration(e.target.duration)}
-                            onClick={togglePlay}
-                            className={`w-[85%] max-w-[1000px] max-h-[85vh] rounded-xl bg-black shadow-[0_10px_40px_rgba(0,0,0,0.6)] ${!isHost ? 'pointer-events-none' : 'cursor-pointer'}`}
-                        >
-                            Your browser does not support the video tag.
-                        </video>
-
-                        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 w-[80%] max-w-[900px] z-10 bg-black/60 backdrop-blur-md px-5 py-3.5 rounded-xl border border-white/10 flex items-center gap-4 shadow-2xl transition-opacity duration-300 opacity-0 group-hover:opacity-100">
-                            {isHost && (
-                                <button onClick={togglePlay} className="text-white hover:text-accent transition-colors outline-none flex-shrink-0">
-                                    {isPlaying ? (
-                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-7 h-7">
-                                            <path fillRule="evenodd" d="M6.75 5.25a.75.75 0 01.75-.75H9a.75.75 0 01.75.75v13.5a.75.75 0 01-.75.75H7.5a.75.75 0 01-.75-.75V5.25zm7.5 0a.75.75 0 01.75-.75h1.5a.75.75 0 01.75.75v13.5a.75.75 0 01-.75.75h-1.5a.75.75 0 01-.75-.75V5.25z" clipRule="evenodd" />
-                                        </svg>
-                                    ) : (
-                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-7 h-7">
-                                            <path fillRule="evenodd" d="M4.5 5.653c0-1.426 1.529-2.33 2.779-1.643l11.54 6.348c1.295.712 1.295 2.573 0 3.285L7.28 19.991c-1.25.687-2.779-.217-2.779-1.643V5.653z" clipRule="evenodd" />
-                                        </svg>
-                                    )}
-                                </button>
-                            )}
-
-                            <div className="text-white/80 text-[0.8rem] font-semibold tracking-wider w-[45px] text-right flex-shrink-0">
-                                {formatTime(currentTime)}
-                            </div>
-
-                            <div className="relative flex-1 h-1.5 bg-white/20 rounded-full flex items-center">
-                                <div
-                                    className="absolute left-0 top-0 h-full bg-accent rounded-full pointer-events-none transition-all duration-75 ease-linear"
-                                    style={{ width: `${duration > 0 ? (currentTime / duration) * 100 : 0}%` }}
+                    <div className="flex items-center justify-center bg-black/35 relative group w-full h-full overflow-hidden">
+                        {!iframeLink ? (
+                            isHost ? (
+                                <div className="absolute top-[12%] w-full flex justify-center px-6 z-50">
+                                    <ContentSearch onPlay={handlePlayMedia} />
+                                </div>
+                            ) : (
+                                <div className="text-white/60 text-lg flex flex-col items-center gap-4">
+                                    <svg className="w-12 h-12 animate-pulse text-accent opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                    </svg>
+                                    Waiting for the host to select a movie...
+                                </div>
+                            )
+                        ) : (
+                            <div className="w-[90%] h-[85vh] relative rounded-xl overflow-hidden shadow-[0_10px_40px_rgba(0,0,0,0.6)] bg-black">
+                                <iframe
+                                    src={iframeLink}
+                                    width="100%"
+                                    height="100%"
+                                    frameBorder="0"
+                                    allowFullScreen
+                                    className="w-full h-full absolute inset-0"
                                 />
-                                {isHost && (
-                                    <input
-                                        type="range"
-                                        min="0"
-                                        max={duration || 0}
-                                        step="0.1"
-                                        value={currentTime}
-                                        onChange={handleSeekInput}
-                                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                                    />
-                                )}
                             </div>
-
-                            <div className="text-white/80 text-[0.8rem] font-semibold tracking-wider w-[45px] text-left flex-shrink-0">
-                                {formatTime(duration)}
-                            </div>
-                        </div>
+                        )}
                     </div>
 
                     <aside className="bg-black/45 border-l border-white/10 flex flex-col h-full min-h-0 overflow-hidden">
@@ -526,7 +446,6 @@ export default function Room() {
                                         const isSelected = selectedFriends.includes(friend._id);
                                         const isAlreadyInRoom = usersInRoom.includes(String(friend._id));
 
-                                        // --- CHECKING ONLINE STATUS HERE ---
                                         const isOnline = onlineUsers.includes(friend._id);
 
                                         return (
@@ -536,10 +455,10 @@ export default function Room() {
                                                     if (!isAlreadyInRoom) toggleFriendSelection(friend._id);
                                                 }}
                                                 className={`flex items-center justify-between p-3 rounded-xl border transition-all duration-200 select-none ${isAlreadyInRoom
-                                                        ? 'bg-[#111] border-[#222] opacity-50 cursor-not-allowed'
-                                                        : isSelected
-                                                            ? 'cursor-pointer bg-accent/15 border-accent shadow-[0_0_15px_rgba(255,92,0,0.15)]'
-                                                            : 'cursor-pointer bg-[#161616] border-[#333] hover:border-[#555]'
+                                                    ? 'bg-[#111] border-[#222] opacity-50 cursor-not-allowed'
+                                                    : isSelected
+                                                        ? 'cursor-pointer bg-accent/15 border-accent shadow-[0_0_15px_rgba(255,92,0,0.15)]'
+                                                        : 'cursor-pointer bg-[#161616] border-[#333] hover:border-[#555]'
                                                     }`}
                                             >
                                                 <div className="flex items-center gap-3 overflow-hidden">

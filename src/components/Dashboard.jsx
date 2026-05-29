@@ -27,7 +27,6 @@ export default function Dashboard({ setIsAuth }) {
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const [activeModal, setActiveModal] = useState(null);
     const [generatedRoomId, setGeneratedRoomId] = useState('');
-    const [videoLink, setVideoLink] = useState('');
     const [joinRoomId, setJoinRoomId] = useState('');
     
     const [searchQuery, setSearchQuery] = useState('');
@@ -50,7 +49,6 @@ export default function Dashboard({ setIsAuth }) {
         ? new Date(currentUser.createdAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) 
         : 'Recently';
 
-    // Moved this up so the Socket Hook can use it for the Toast button
     const joinRoomByCode = async (code) => {
         try {
             const token = localStorage.getItem('token');
@@ -62,7 +60,7 @@ export default function Dashboard({ setIsAuth }) {
 
             if (response.data.success) {
                 dispatch(setRoom(response.data.room));
-                toast.dismiss(); // Closes any lingering invite toasts
+                toast.dismiss();
                 toast.success("Joined room successfully!");
                 navigate(`/room/${response.data.room._id}`);
             }
@@ -81,7 +79,6 @@ export default function Dashboard({ setIsAuth }) {
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
-    // --- UPDATED: LOCAL STORAGE AUTH BRIDGE ---
     useEffect(() => {
         let inviteCode = searchParams.get('invite');
         
@@ -98,7 +95,6 @@ export default function Dashboard({ setIsAuth }) {
         }
     }, [searchParams, setSearchParams]);
 
-    // --- UPDATED: PREMIUM TOAST UI & PERSISTENCE ---
     useEffect(() => {
         if (!currentUser) return;
         const socket = io(baseUrl);
@@ -127,11 +123,11 @@ export default function Dashboard({ setIsAuth }) {
                 </div>, 
                 { 
                     position: "top-right", 
-                    autoClose: false, // Disables the disappearing timer completely
-                    closeOnClick: false, // Prevents accidental closing if clicked
-                    draggable: false, // Must click the "x" to dismiss
+                    autoClose: false,
+                    closeOnClick: false,
+                    draggable: false,
                     theme: "dark",
-                    className: "border border-[#333] bg-[#161616] rounded-xl shadow-2xl", // Custom aesthetic
+                    className: "border border-[#333] bg-[#161616] rounded-xl shadow-2xl",
                 }
             );
         });
@@ -159,7 +155,6 @@ export default function Dashboard({ setIsAuth }) {
     
     const closeModal = () => {
         setActiveModal(null);
-        setVideoLink('');
         setJoinRoomId('');
         setSearchQuery('');
         setSearchResults([]);
@@ -173,10 +168,6 @@ export default function Dashboard({ setIsAuth }) {
     };
 
     const handleSelectChatRoom = () => {
-        if (!videoLink.trim()) {
-            toast.warning("Please provide a video link first.");
-            return;
-        }
         setGeneratedRoomId(generateId());
         setActiveModal('room-code');
         toast.success("Room created successfully!");
@@ -192,7 +183,7 @@ export default function Dashboard({ setIsAuth }) {
             const token = localStorage.getItem('token');
             const response = await axios.post(`${baseUrl}/api/rooms/create`, {
                 roomId: generatedRoomId,
-                link: videoLink
+                link: '' // Start with an empty link, Host will search inside the room
             }, {
                 headers: { Authorization: `Bearer ${token}` }
             });
@@ -365,17 +356,10 @@ export default function Dashboard({ setIsAuth }) {
                     <div className="bg-bgLight p-8 w-full max-w-[380px] rounded-[14px] shadow-[0_20px_40px_rgba(0,0,0,0.6)] relative animate-popIn" onClick={(e) => e.stopPropagation()}>
                         <button className="absolute top-3 right-3.5 text-2xl bg-transparent border-none text-textSecondary cursor-pointer hover:text-white" onClick={closeModal}>&times;</button>
                         <h2 className="mb-5 text-center text-2xl font-bold">Create a Room</h2>
-                        <input 
-                            type="text" 
-                            placeholder="Paste Video Link Here" 
-                            className={`${inputStyle} mb-6`}
-                            value={videoLink}
-                            onChange={(e) => setVideoLink(e.target.value)}
-                            required 
-                        />
+                        
                         <p className="mb-4 text-[#bbbbbb] text-[0.95rem] text-center">What kind of room do you want to create?</p>
                         
-                        <div className="flex gap-4 w-full">
+                        <div className="flex gap-4 w-full mt-6">
                             <button className={`${btnPrimary} flex-1 flex flex-col items-center justify-center gap-1.5 py-3.5 px-0`} onClick={handleSelectChatRoom}>
                                 Chat Room
                             </button>

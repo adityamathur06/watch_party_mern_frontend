@@ -17,6 +17,7 @@ export default function Room() {
     const [newMessage, setNewMessage] = useState("");
     
     const [iframeLink, setIframeLink] = useState("");
+    const [showSearch, setShowSearch] = useState(false);
 
     const [isAddFriendModalOpen, setIsAddFriendModalOpen] = useState(false);
     const [friendSearchQuery, setFriendSearchQuery] = useState("");
@@ -50,7 +51,6 @@ export default function Room() {
 
     useEffect(() => {
         const fetchRoomAndChats = async () => {
-            // Prevent multiple socket connections on re-renders
             if (isSocketInitialized.current) return;
             isSocketInitialized.current = true;
 
@@ -113,7 +113,6 @@ export default function Room() {
                         navigate('/dashboard');
                     });
 
-                    // When the host picks a movie, update the iframe for everyone else
                     socketRef.current.on('video_change', (newLink) => {
                         setIframeLink(newLink);
                     });
@@ -197,12 +196,17 @@ export default function Room() {
         }
     };
 
-    const handlePlayMedia = (item) => {
-        const type = item.media_type === 'tv' ? 'tv' : 'movie';
-        // Removed autoPlay=true so users have time to sync up manually
-        const baseLink = `https://www.vidking.net/embed/${type}/${item.id}?color=ff5c00`;
+    const handlePlayMedia = (item, season = null, episode = null) => {
+        let baseLink = '';
+        
+        if (item.media_type === 'tv') {
+            baseLink = `https://www.vidking.net/embed/tv/${item.id}/${season}/${episode}?color=ff5c00`;
+        } else {
+            baseLink = `https://www.vidking.net/embed/movie/${item.id}?color=ff5c00`;
+        }
         
         setIframeLink(baseLink);
+        setShowSearch(false);
         
         if (socketRef.current && currentRoom) {
             socketRef.current.emit('video_change', { 
@@ -289,6 +293,18 @@ export default function Room() {
                             <span className="bg-[#ff5c00] text-white px-3 py-1 rounded-md text-[1.4rem] tracking-widest font-bold">
                                 {currentRoom.roomId}
                             </span>
+                            
+                            {isHost && iframeLink && (
+                                <button
+                                    onClick={() => setShowSearch(!showSearch)}
+                                    className={`ml-3 flex items-center gap-2 px-3 py-1.5 rounded-md text-[0.85rem] font-semibold transition-all duration-200 cursor-pointer ${showSearch ? 'bg-accent text-white shadow-[0_0_10px_rgba(255,92,0,0.3)] border-accent' : 'bg-white/10 text-white hover:bg-white/20 border border-white/10'}`}
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                    </svg>
+                                    {showSearch ? 'Close Search' : 'Change Movie'}
+                                </button>
+                            )}
                         </h1>
                     </div>
                     <button className="bg-[#ff4d4d]/15 border border-[#ff4d4d]/40 text-[#ff4d4d] px-3.5 py-1.5 rounded-md text-[0.85rem] cursor-pointer transition-all duration-200 hover:bg-[#ff4d4d]/25" onClick={leaveRoom}>
@@ -338,6 +354,12 @@ export default function Room() {
                     </aside>
 
                     <div className="flex items-center justify-center bg-black/35 relative group w-full h-full overflow-hidden">
+                        {isHost && iframeLink && showSearch && (
+                            <div className="absolute top-[8%] w-full flex justify-center px-6 z-[60] animate-fadeIn">
+                                <ContentSearch onPlay={handlePlayMedia} />
+                            </div>
+                        )}
+
                         {!iframeLink ? (
                             isHost ? (
                                 <div className="absolute top-[12%] w-full flex justify-center px-6 z-50">
@@ -359,7 +381,7 @@ export default function Room() {
                                     height="100%"
                                     frameBorder="0"
                                     allowFullScreen
-                                    className="w-full h-full absolute inset-0"
+                                    className={`w-full h-full absolute inset-0 transition-all duration-300 ${showSearch ? 'opacity-40 blur-sm pointer-events-none' : 'opacity-100'}`}
                                 />
                             </div>
                         )}

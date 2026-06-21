@@ -24,6 +24,14 @@ export const getAvatarGradient = (name) => {
     return gradients[Math.abs(hash) % gradients.length];
 };
 
+// Reusable SVG Loading Spinner
+const LoadingSpinner = ({ className = "w-5 h-5" }) => (
+    <svg className={`animate-spin ${className} text-white`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+    </svg>
+);
+
 export default function Dashboard({ setIsAuth }) {
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const [activeModal, setActiveModal] = useState(null);
@@ -33,6 +41,10 @@ export default function Dashboard({ setIsAuth }) {
     const [searchQuery, setSearchQuery] = useState('');
     const [searchResults, setSearchResults] = useState([]);
     const [isSearching, setIsSearching] = useState(false);
+
+    // NEW: API Loading States
+    const [isCreatingRoom, setIsCreatingRoom] = useState(false);
+    const [isJoiningRoom, setIsJoiningRoom] = useState(false);
 
     const [searchParams, setSearchParams] = useSearchParams();
 
@@ -51,6 +63,7 @@ export default function Dashboard({ setIsAuth }) {
         : 'Recently';
 
     const joinRoomByCode = useCallback(async (code) => {
+        setIsJoiningRoom(true);
         try {
             const token = localStorage.getItem('token');
             const response = await axios.post(`${baseUrl}/api/rooms/join`, {
@@ -67,6 +80,8 @@ export default function Dashboard({ setIsAuth }) {
             }
         } catch (error) {
             toast.error(error.response?.data?.message || "Room does not exist");
+        } finally {
+            setIsJoiningRoom(false);
         }
     }, [dispatch, navigate]);
 
@@ -187,6 +202,7 @@ export default function Dashboard({ setIsAuth }) {
     };
 
     const createAndGoToRoom = async () => {
+        setIsCreatingRoom(true);
         try {
             const token = localStorage.getItem('token');
             const response = await axios.post(`${baseUrl}/api/rooms/create`, {
@@ -202,6 +218,8 @@ export default function Dashboard({ setIsAuth }) {
             }
         } catch (error) {
             toast.error(error.response?.data?.message || "Failed to create room");
+        } finally {
+            setIsCreatingRoom(false);
         }
     };
 
@@ -273,26 +291,33 @@ export default function Dashboard({ setIsAuth }) {
         }
     };
 
-    const btnBase = "px-7 py-3 rounded-xl text-base font-semibold tracking-wide cursor-pointer transition-all duration-300 ease-out transform active:scale-95";
-    const btnPrimary = `${btnBase} text-white bg-[var(--accent-color,#ff5c00)] hover:shadow-[0_0_25px_var(--accent-color,#ff5c00)] hover:-translate-y-0.5`;
+    const btnBase = "px-7 py-3 rounded-xl text-base font-semibold tracking-wide cursor-pointer transition-all duration-300 ease-out transform active:scale-95 flex justify-center items-center gap-2.5";
+    const btnPrimary = `${btnBase} text-white bg-[var(--accent-color,#ff5c00)] shadow-[0_0_20px_var(--accent-color,#ff5c00)] hover:shadow-[0_0_35px_var(--accent-color,#ff5c00)] hover:-translate-y-0.5 disabled:opacity-80 disabled:brightness-75 disabled:cursor-not-allowed disabled:hover:-translate-y-0 disabled:hover:shadow-[0_0_20px_var(--accent-color,#ff5c00)] disabled:active:scale-100`;
     const btnSecondary = `${btnBase} bg-[#141416]/80 text-white border border-[#2d2d30] hover:border-[var(--accent-color,#ff5c00)] hover:shadow-[0_0_20px_rgba(255,255,255,0.05)] hover:-translate-y-0.5`;
     const inputStyle = "w-full px-4 py-3.5 bg-[#0e0e11] border border-[#27272a] rounded-xl text-white text-[0.95rem] transition-all duration-300 focus:outline-none focus:border-[var(--accent-color,#ff5c00)] focus:ring-1 focus:ring-[var(--accent-color,#ff5c00)] placeholder:text-[#71717a] placeholder:tracking-normal tracking-widest";
 
     return (
         <div className="relative min-h-screen w-full bg-[#09090b] text-[#f4f4f5] overflow-hidden font-sans">
             
-            <div className="absolute top-0 left-0 w-full h-[500px] pointer-events-none overflow-hidden flex justify-center z-0">
-                <div className="absolute -top-[200px] w-[90%] max-w-[800px] h-[450px] bg-[var(--accent-color,#ff5c00)] opacity-40 blur-[100px] rounded-full mix-blend-screen" />
-                <div className="absolute -top-[150px] left-[10%] w-[60%] max-w-[600px] h-[400px] bg-[var(--accent-color,#ff5c00)] opacity-30 blur-[120px] rounded-full mix-blend-screen animate-pulse" />
-                <div className="absolute -top-[150px] right-[10%] w-[60%] max-w-[600px] h-[400px] bg-[var(--accent-color,#ff5c00)] opacity-20 blur-[120px] rounded-full mix-blend-screen animate-pulse" style={{ animationDelay: '1s' }} />
+            {/* THE BIGGER & GLOWIER CINEMATIC CANOPY */}
+            {/* FIXED: Changed z-[-1] to z-0 so it renders on top of the black background */}
+            <div className="absolute top-0 left-0 w-full h-[800px] pointer-events-none overflow-hidden flex justify-center z-0">
+                {/* Layer 1: Massive, soft ambient wash */}
+                <div className="absolute -top-[300px] w-[200%] max-w-[1500px] h-[700px] bg-[var(--accent-color,#ff5c00)] opacity-[0.35] blur-[150px] rounded-[100%] mix-blend-screen" />
+                
+                {/* Layer 2: Brighter, tighter core */}
+                <div className="absolute -top-[150px] w-[120%] max-w-[1000px] h-[400px] bg-[var(--accent-color,#ff5c00)] opacity-[0.55] blur-[100px] rounded-[100%] mix-blend-screen" />
+                
+                {/* Layer 3: Intense, hot rim light directly under the glass navbar */}
+                <div className="absolute top-[-80px] w-[80%] max-w-[600px] h-[250px] bg-[var(--accent-color,#ff5c00)] opacity-[0.80] blur-[70px] rounded-[100%] mix-blend-screen" />
             </div>
 
-            <header className="relative z-20 bg-[#09090b]/40 backdrop-blur-xl h-20 px-8 flex items-center justify-between border-b border-[#27272a]/50">
+            <header className="relative z-20 bg-[#09090b]/20 backdrop-blur-2xl h-20 px-8 flex items-center justify-between border-b border-white/5 shadow-[0_4px_30px_rgba(0,0,0,0.1)]">
                 <div className="text-2xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white to-[#a1a1aa]">Watch-Party</div>
                 
                 <div className="relative" ref={dropdownRef}>
                     <button 
-                        className="bg-[#141416]/80 backdrop-blur-md border border-[#27272a] hover:border-[var(--accent-color,#ff5c00)] text-white pl-2 pr-4 py-1.5 rounded-full text-[0.95rem] cursor-pointer flex items-center gap-3 transition-all duration-300 shadow-sm" 
+                        className="bg-[#141416]/60 backdrop-blur-md border border-white/10 hover:border-[var(--accent-color,#ff5c00)] text-white pl-2 pr-4 py-1.5 rounded-full text-[0.95rem] cursor-pointer flex items-center gap-3 transition-all duration-300 shadow-sm" 
                         onClick={toggleDropdown}
                     >
                         <div className={`w-8 h-8 rounded-full bg-gradient-to-br ${getAvatarGradient(userName)} flex items-center justify-center text-white font-bold text-[0.8rem] shrink-0 shadow-inner`}>
@@ -353,7 +378,8 @@ export default function Dashboard({ setIsAuth }) {
             <main className="relative z-10 max-w-[900px] mx-auto px-8 py-20 flex flex-col items-center text-center">
                 <section className="flex flex-col items-center text-center w-full">
                     
-                    <h1 className="text-5xl md:text-6xl font-extrabold tracking-tight mb-6 py-2 leading-normal bg-clip-text text-transparent bg-gradient-to-b from-white via-[#f4f4f5] to-[#a1a1aa]">
+                    {/* Seamless text gradient transitioning into the accent color */}
+                    <h1 className="text-5xl md:text-6xl font-extrabold tracking-tight mb-6 py-2 leading-normal bg-clip-text text-transparent bg-gradient-to-r from-white via-[#f4f4f5] to-[var(--accent-color,#ff5c00)]">
                         Welcome, {userName}
                     </h1>
                     
@@ -386,8 +412,8 @@ export default function Dashboard({ setIsAuth }) {
                         <h2 className="mb-4 text-center text-3xl font-bold tracking-tight text-white">Create a Room</h2>
                         <p className="mb-6 text-[#a1a1aa] text-[0.95rem] text-center leading-relaxed">Select the type of room you want to host.</p>
                         
-                        {/* REDESIGNED: Sleek Horizontal List Buttons */}
                         <div className="flex flex-col gap-3 w-full mt-4">
+                            {/* Primary Button */}
                             <button className={`${btnPrimary} w-full flex items-center justify-start px-5 py-4 gap-4`} onClick={handleSelectChatRoom}>
                                 <span className="text-2xl bg-black/20 p-2 rounded-lg shrink-0">💬</span>
                                 <div className="flex flex-col items-start text-left">
@@ -418,7 +444,9 @@ export default function Dashboard({ setIsAuth }) {
                             <button className="bg-[#27272a]/50 border border-[#3f3f46] text-white px-4 py-2 rounded-lg text-[0.8rem] font-bold cursor-pointer transition-all hover:bg-[#3f3f46] active:scale-95" onClick={copyToClipboard}>Copy</button>
                         </div>
 
-                        <button className={`${btnPrimary} w-full mx-auto block mt-2`} onClick={createAndGoToRoom}>Enter Room</button>
+                        <button disabled={isCreatingRoom} className={`${btnPrimary} w-full mx-auto block mt-2`} onClick={createAndGoToRoom}>
+                            {isCreatingRoom ? <><LoadingSpinner /> Loading Room...</> : "Enter Room"}
+                        </button>
                     </div>
                 )}
 
@@ -437,7 +465,9 @@ export default function Dashboard({ setIsAuth }) {
                                 onChange={(e) => setJoinRoomId(e.target.value.toUpperCase())}
                                 required 
                             />
-                            <button type="submit" className={btnPrimary}>Join Session</button>
+                            <button type="submit" disabled={isJoiningRoom} className={btnPrimary}>
+                                {isJoiningRoom ? <><LoadingSpinner /> Joining...</> : "Join Session"}
+                            </button>
                         </form>
                     </div>
                 )}
@@ -492,7 +522,7 @@ export default function Dashboard({ setIsAuth }) {
                         )}
 
                         <div className="flex-1 overflow-hidden flex flex-col min-h-0">
-                            <h3 className="text-[0.75rem] text-[#a1a1aa] uppercase tracking-widest mb-3 font-bold px-1 shrink-0">Your Friends</h3>
+                            <h3 className="text-[0.75rem] text-[#a1a1aa] uppercase tracking-widest mb-3 font-bold px-1 shrink-0">Your Network</h3>
                             <div className="flex-1 overflow-y-auto custom-scrollbar pr-1 flex flex-col gap-2">
                                 {friendsList.length > 0 ? (
                                     friendsList.map(friend => {
@@ -533,7 +563,7 @@ export default function Dashboard({ setIsAuth }) {
                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-[#3f3f46] mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
                                         </svg>
-                                        <p className="text-[#f4f4f5] font-semibold text-[0.95rem]">No friends added yet.</p>
+                                        <p className="text-[#f4f4f5] font-semibold text-[0.95rem]">No network yet.</p>
                                         <p className="text-[#71717a] text-[0.8rem] mt-1 max-w-[220px] leading-relaxed">Use the search bar above to connect with friends.</p>
                                     </div>
                                 )}

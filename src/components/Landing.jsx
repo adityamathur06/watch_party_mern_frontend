@@ -8,7 +8,13 @@ import { toast } from "react-toastify";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faEye } from "@fortawesome/free-solid-svg-icons";
 
-// FIXED: Moved PasswordToggle OUTSIDE the main component and passed state as props
+const LoadingSpinner = ({ className = "w-5 h-5" }) => (
+    <svg className={`animate-spin ${className} text-white`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+    </svg>
+);
+
 const PasswordToggle = ({ showPassword, setShowPassword }) => (
     <button
         type="button"
@@ -38,6 +44,11 @@ export default function Landing({ setIsAuth }) {
 
     const [typedTitle, setTypedTitle] = useState("");
     const fullTitle = "Watch-Party";
+
+    const [isLoggingIn, setIsLoggingIn] = useState(false);
+    const [isSendingOtp, setIsSendingOtp] = useState(false);
+    const [isResendingOtp, setIsResendingOtp] = useState(false);
+    const [isSigningUp, setIsSigningUp] = useState(false);
 
     const canvasRef = useRef(null);
 
@@ -194,6 +205,7 @@ export default function Landing({ setIsAuth }) {
 
     const handleLogin = async (e) => {
         e.preventDefault();
+        setIsLoggingIn(true);
         try {
             const response = await axios.post(`${baseUrl}/api/auth/login`, formData);
             localStorage.setItem('token', response.data.token);
@@ -203,33 +215,32 @@ export default function Landing({ setIsAuth }) {
             navigate('/dashboard');
         } catch (error) {
             toast.error(error.response?.data?.message || "Invalid email or password");
+        } finally {
+            setIsLoggingIn(false);
         }
     };
 
     const handleSendOtp = async (e, isResend = false) => {
         if (e) e.preventDefault();
-        const targetTime = Date.now() + 300000;
+        
+        if (isResend) setIsResendingOtp(true);
+        else setIsSendingOtp(true);
 
-        if (!isResend) {
-            setSignupStep(2);
-            setExpireTime(targetTime);
-            setTimeLeft(300);
-            setOtpValue("");
-        } else {
-            setExpireTime(targetTime);
-            setTimeLeft(300);
-            setOtpValue("");
-        }
+        // REVERTED: Instantly transition to Step 2 screen before the network request answers
+        const targetTime = Date.now() + 300000;
+        setSignupStep(2);
+        setExpireTime(targetTime);
+        setTimeLeft(300);
+        if (!isResend) setOtpValue("");
 
         try {
-            toast.success(isResend ? "New code sent!" : "Verification code sent to email!");
-            // FIXED: Removed unused 'const response ='
             await axios.post(`${baseUrl}/api/auth/send-otp`, { email: formData.email });
+            toast.success(isResend ? "New code sent!" : "Verification code sent to email!");
         } catch (error) {
             toast.error(error.response?.data?.message || "Error sending code");
-            if (!isResend) {
-                setSignupStep(1);
-            }
+        } finally {
+            setIsSendingOtp(false);
+            setIsResendingOtp(false);
         }
     };
 
@@ -241,6 +252,7 @@ export default function Landing({ setIsAuth }) {
             return;
         }
 
+        setIsSigningUp(true);
         try {
             const payload = { ...formData, otp: otpValue };
             const response = await axios.post(`${baseUrl}/api/auth/signup`, payload);
@@ -252,11 +264,13 @@ export default function Landing({ setIsAuth }) {
             setFormData({});
         } catch (error) {
             toast.error(error.response?.data?.message || "Signup failed");
+        } finally {
+            setIsSigningUp(false);
         }
     };
 
-    const btnBase = "px-7 py-3 rounded-xl text-base font-semibold tracking-wide cursor-pointer transition-all duration-300 ease-out transform active:scale-95";
-    const btnPrimary = `${btnBase} text-white bg-[var(--accent-color,#ff5c00)] hover:shadow-[0_0_25px_var(--accent-color,#ff5c00)] hover:-translate-y-0.5`;
+    const btnBase = "px-7 py-3 rounded-xl text-base font-semibold tracking-wide cursor-pointer transition-all duration-300 ease-out transform active:scale-95 flex justify-center items-center gap-2.5";
+    const btnPrimary = `${btnBase} text-white bg-[var(--accent-color,#ff5c00)] hover:shadow-[0_0_25px_var(--accent-color,#ff5c00)] hover:-translate-y-0.5 disabled:opacity-80 disabled:brightness-75 disabled:cursor-not-allowed disabled:hover:-translate-y-0 disabled:hover:shadow-none disabled:active:scale-100`;
     const btnSecondary = `${btnBase} bg-[#141416]/80 text-white border border-[#2d2d30] hover:border-[var(--accent-color,#ff5c00)] hover:shadow-[0_0_20px_rgba(255,255,255,0.05)] hover:-translate-y-0.5`;
     const inputStyle = "px-4 py-3 rounded-xl border border-[#27272a] bg-[#0e0e11] text-white text-[0.95rem] transition-all duration-300 focus:outline-none focus:border-[var(--accent-color,#ff5c00)] focus:ring-1 focus:ring-[var(--accent-color,#ff5c00)]";
 
@@ -305,11 +319,12 @@ export default function Landing({ setIsAuth }) {
                                     value={formData.password || ''} 
                                     required 
                                 />
-                                {/* FIXED: Passed state as props */}
                                 <PasswordToggle showPassword={showPassword} setShowPassword={setShowPassword} />
                             </div>
 
-                            <button type="submit" className={`${btnPrimary} mt-2`}>Login</button>
+                            <button type="submit" disabled={isLoggingIn} className={`${btnPrimary} mt-2`}>
+                                {isLoggingIn ? <><LoadingSpinner /> Logging in...</> : "Login"}
+                            </button>
                         </form>
                     </div>
                 )}
@@ -329,15 +344,16 @@ export default function Landing({ setIsAuth }) {
                                         onChange={handleChange} 
                                         type={showPassword ? "text" : "password"} 
                                         name="password" 
-                                        placeholder="Secure Password" 
+                                        placeholder="Create Password" 
                                         value={formData.password || ''} 
                                         required 
                                     />
-                                    {/* FIXED: Passed state as props */}
                                     <PasswordToggle showPassword={showPassword} setShowPassword={setShowPassword} />
                                 </div>
 
-                                <button type="submit" className={`${btnPrimary} mt-2`}>Send Verification Code</button>
+                                <button type="submit" disabled={isSendingOtp} className={`${btnPrimary} mt-2`}>
+                                    {isSendingOtp ? <><LoadingSpinner /> Sending Code...</> : "Send Verification Code"}
+                                </button>
                             </form>
                         ) : (
                             <form className="flex flex-col gap-4" onSubmit={handleSignup}>
@@ -361,17 +377,20 @@ export default function Landing({ setIsAuth }) {
                                     <span className="text-sm text-[#71717a]">
                                         Expires in <strong className={timeLeft < 60 ? "text-[#f43f5e]" : "text-[#f4f4f5]"}>{formatTime(timeLeft)}</strong>
                                     </span>
+                                    
                                     <button 
                                         type="button" 
                                         onClick={(e) => handleSendOtp(e, true)}
-                                        disabled={timeLeft > 0}
-                                        className={`text-sm border-none bg-transparent transition-colors ${timeLeft === 0 ? 'text-[var(--accent-color,#ff5c00)] hover:underline cursor-pointer font-semibold' : 'text-[#3f3f46] cursor-not-allowed'}`}
+                                        disabled={timeLeft > 0 || isResendingOtp}
+                                        className={`text-sm border-none bg-transparent transition-colors flex items-center gap-1.5 ${(timeLeft === 0 && !isResendingOtp) ? 'text-[var(--accent-color,#ff5c00)] hover:underline cursor-pointer font-semibold' : 'text-[#3f3f46] cursor-not-allowed'}`}
                                     >
-                                        Resend Code
+                                        {isResendingOtp ? <><LoadingSpinner className="w-4 h-4 text-[#3f3f46]" /> Sending...</> : "Resend Code"}
                                     </button>
                                 </div>
 
-                                <button type="submit" className={`${btnPrimary} mt-2`}>Verify & Complete Signup</button>
+                                <button type="submit" disabled={isSigningUp} className={`${btnPrimary} mt-2`}>
+                                    {isSigningUp ? <><LoadingSpinner /> Verifying...</> : "Verify & Complete Signup"}
+                                </button>
                                 
                                 <button 
                                     type="button" 

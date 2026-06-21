@@ -13,6 +13,15 @@ import Landing from './components/Landing';
 import Dashboard from './components/Dashboard';
 import Room from './components/Room';
 
+// FIXED: Moved Route wrappers OUTSIDE the main App component
+const ProtectedRoute = ({ isAuth, children }) => {
+  return isAuth ? children : <Navigate to="/" replace />;
+};
+
+const PublicRoute = ({ isAuth, children }) => {
+  return !isAuth ? children : <Navigate to="/dashboard" replace />;
+};
+
 function App() {
   const dispatch = useDispatch();
   const [isAuth, setIsAuth] = useState(null);
@@ -69,38 +78,33 @@ function App() {
 
   if (isAuth === null) {
     return (
-      <div className="flex min-h-screen items-center justify-center text-white text-xl font-medium tracking-wide">
+      <div className="flex min-h-screen items-center justify-center bg-[#09090b] text-white text-xl font-medium tracking-wide">
         Loading...
       </div>
     );
   }
-
-  const ProtectedRoute = ({ children }) => {
-    return isAuth ? children : <Navigate to="/" replace />;
-  };
-
-  const PublicRoute = ({ children }) => {
-    return !isAuth ? children : <Navigate to="/dashboard" replace />;
-  };
 
   return (
     <>
       <BrowserRouter>
         <Routes>
           <Route path="/" element={
-            <PublicRoute>
+            // FIXED: Passed isAuth as a prop
+            <PublicRoute isAuth={isAuth}>
               <Landing setIsAuth={setIsAuth} />
             </PublicRoute>
           } />
 
           <Route path="/dashboard" element={
-            <ProtectedRoute>
+            // FIXED: Passed isAuth as a prop
+            <ProtectedRoute isAuth={isAuth}>
               <Dashboard setIsAuth={setIsAuth} />
             </ProtectedRoute>
           } />
 
           <Route path="/room/:id" element={
-            <ProtectedRoute>
+            // FIXED: Passed isAuth as a prop
+            <ProtectedRoute isAuth={isAuth}>
               <Room />
             </ProtectedRoute>
           } />
@@ -120,7 +124,7 @@ function App() {
         pauseOnFocusLoss
         draggable
         pauseOnHover={false}
-        theme="light"
+        theme="dark" // Switched to dark to match your new UI!
         transition={Flip}
       />
     </>
